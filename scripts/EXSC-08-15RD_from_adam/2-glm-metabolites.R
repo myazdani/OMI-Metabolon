@@ -15,8 +15,8 @@ for (i in c(1:length(pathways.list))){
   
   df.super.pathway = pathways.list[[subpathway]]
   
-  if (nrow(df.super.pathway) >= 50) {
-    num.metabolites = 50
+  if (nrow(df.super.pathway) >= 10) {
+    num.metabolites = 10
   } else{
     num.metabolites = nrow(df.super.pathway)
   }
