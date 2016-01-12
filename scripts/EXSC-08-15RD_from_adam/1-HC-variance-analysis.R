@@ -6,7 +6,17 @@ setwd("~/Documents/OMI/Metabolon/")
 df.counts = read.delim("./rawData/ECSC-08-15-from-Adam/clean-metabolite-counts.tsv", header = TRUE, stringsAsFactors = FALSE, colClasses = "character")
 pathways.keys = read.delim("./rawData/ECSC-08-15-from-Adam/metabolite-names-key.tsv", header = TRUE, stringsAsFactors = FALSE, colClasses = "character")
 df.pathways = merge(pathways.keys, df.counts)
-pathways.list = split(df.pathways, f = df.pathways$SUPER_PATHWAY)
+
+USING_SUPER_PATHWAY = TRUE
+
+Z_SCALE = TRUE
+
+if (USING_SUPER_PATHWAY){
+  pathways.list = split(df.pathways, f = df.pathways$SUPER_PATHWAY)
+} else{ #use sub_pathway and only for lipids
+  lipids = subset(df.pathways, SUPER_PATHWAY == "Lipid")
+  pathways.list = split(lipids, f = lipids$SUB_PATHWAY)
+}
 
 print(names(pathways.list))
 
@@ -43,6 +53,14 @@ for (i in c(1:length(pathways.list))){
   biochem.df$sample.type = sapply(biochem.df$patient.sample, FUN = function(x) strsplit(x, "CFS.")[[1]][2])
   biochem.df$sample.type[is.na(biochem.df$sample.type)] = "HC"
   
+  if (Z_SCALE){
+    #biochem.df[,-c(ncol(biochem.df)-1, ncol(biochem.df))] = scale(log10(1 + biochem.df[,-c(ncol(biochem.df)-1, ncol(biochem.df))]))
+    biochem.hc = subset(biochem.df, sample.type == "HC")
+    mean.hc = lapply(biochem.hc[,-c(ncol(biochem.hc)-1, ncol(biochem.hc))], FUN = function(x) mean(log10(x), na.rm = TRUE))
+    sd.hc = lapply(biochem.hc[,-c(ncol(biochem.hc)-1, ncol(biochem.hc))], FUN = function(x) sd(log10(x), na.rm = TRUE))
+    biochem.df[,-c(ncol(biochem.df)-1, ncol(biochem.df))] = (log10(biochem.df[,-c(ncol(biochem.df)-1, ncol(biochem.df))]) - mean.hc)/sd.hc
+  }
+  
   ## turn to long format
   library(reshape)
   df.m = reshape::melt(biochem.df, id.vars = c("patient.sample", "sample.type"), factorsAsStrings = FALSE)
@@ -68,13 +86,16 @@ for (i in c(1:length(pathways.list))){
   #  compute variances
   #
   #########################################################
+  if (Z_SCALE == FALSE){
+    df.m$value = log10(1+value)
+  }
   
   df.m %>%
     group_by(sample.type, variable) %>%
-    summarise(median.metabolite.na.rm = median(log10(1+value), na.rm = TRUE),
-              mad.metabolite.na.rm = mad(log10(1+value), na.rm = TRUE),
-              median.metabolite = median(log10(1+value), na.rm = FALSE),
-              mad.metabolite = mad(log10(1+value), na.rm = FALSE)) %>%
+    summarise(median.metabolite.na.rm = median(value, na.rm = TRUE),
+              mad.metabolite.na.rm = mad(value, na.rm = TRUE),
+              median.metabolite = median(value, na.rm = FALSE),
+              mad.metabolite = mad(value, na.rm = FALSE)) %>%
     as.data.frame() -> df.stats
   
   hc.stats = subset(df.stats, sample.type == "HC")
@@ -90,11 +111,11 @@ for (i in c(1:length(pathways.list))){
   top10.df = subset(df.m, variable %in% hc.least.variant)
   top10.df = merge(top10.df, biochem.keys, by.x = "variable", by.y = "BIOCHEM.name", all.x = TRUE)
   top10.df$sample.type = factor(top10.df$sample.type, levels = c("HC", "Pre", "Post"))
-  ggplot(top10.df, aes(factor(BIOCHEMICAL), log10(value))) + 
+  ggplot(top10.df, aes(factor(BIOCHEMICAL), value)) + 
     geom_boxplot(aes(fill = sample.type)) + xlab("") + 
-    theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 14)) + ggtitle(subpathway) -> p
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 24)) + ggtitle(subpathway) -> p
   
-  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/superpathway-metabolties/least-variance/" , subpathway, "-least-variant-HC-boxplot.png"), 
+  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/superpathway-metabolties/z-scaled/least-variance/" , subpathway, "-least-variant-HC-boxplot.png"), 
          plot = p, width = 26, height = 18)
   
   
@@ -105,11 +126,11 @@ for (i in c(1:length(pathways.list))){
   cfs.df$sample.type = factor(cfs.df$sample.type, levels = c("Pre", "Post"))
   
   loner.patients = c("ID.9", "ID.78", "ID.311", "ID.730")
-  ggplot(subset(cfs.df, !(patient.sample %in% loner.patients)), aes(x = sample.type, y = log10(value), colour = BIOCHEMICAL, group= BIOCHEMICAL)) +
+  ggplot(subset(cfs.df, !(patient.sample %in% loner.patients)), aes(x = sample.type, y = value, colour = BIOCHEMICAL, group= BIOCHEMICAL)) +
     geom_line() + geom_point(shape=21, fill = "white") + xlab("")  + 
-    facet_wrap(~patient.sample) + ggtitle(subpathway) -> p
+    facet_wrap(~patient.sample) + ggtitle(subpathway) + theme(legend.text=element_text(size=24)) -> p
   
-  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/superpathway-metabolties/least-variance/" , subpathway, "-least-variant-HC-slopegraph.png"), 
+  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/superpathway-metabolties/z-scaled/least-variance/" , subpathway, "-least-variant-HC-slopegraph.png"), 
          plot = p, width = 26, height = 18)
 
 }

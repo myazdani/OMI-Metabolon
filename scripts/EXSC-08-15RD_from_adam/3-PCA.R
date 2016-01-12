@@ -18,7 +18,16 @@ for(i in c(2:ncol(df.counts))){
 
 pathways.keys = read.delim("./rawData/ECSC-08-15-from-Adam/metabolite-names-key.tsv", header = TRUE, stringsAsFactors = FALSE, colClasses = "character")
 df.pathways = merge(pathways.keys, df.counts)
-pathways.list = split(df.pathways, f = df.pathways$SUPER_PATHWAY)
+
+USING_SUPER_PATHWAY = FALSE
+
+if (USING_SUPER_PATHWAY){
+  pathways.list = split(df.pathways, f = df.pathways$SUPER_PATHWAY)
+} else{ #use sub_pathway and only for lipids
+  lipids = subset(df.pathways, SUPER_PATHWAY == "Lipid")
+  pathways.list = split(lipids, f = lipids$SUB_PATHWAY)
+}
+
 
 print(names(pathways.list))
 for (i in c(1:length(pathways.list))){
@@ -32,9 +41,12 @@ for (i in c(1:length(pathways.list))){
   
   df = df.super.pathway[,c(1,13:ncol(df.super.pathway))]
   biochem.keys = data.frame(BIOCHEMICAL = df$BIOCHEMICAL, BIOCHEM.name = make.names(df$BIOCHEMICAL))
-  print(dim(df))
   
-  num.loadings.per.pc = 5
+  if(nrow(df) < 6){
+    next
+  }
+  
+  num.loadings.per.pc = 3
   num.pcs = 2
   
   
@@ -68,7 +80,7 @@ for (i in c(1:length(pathways.list))){
   top.loadings = lapply(as.data.frame(pca.result$rotation), FUN = function(x) row.names(pca.result$rotation)[order(abs(x), decreasing = TRUE)][c(1:num.loadings.per.pc)])
   pca.df = add.patient.data(as.data.frame(pca.result$x))
   ggplot(pca.df, aes(x = PC1, y = PC2, colour = sample.type)) + geom_point() + ggtitle("PCA") + ggtitle(subpathway) -> p
-  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/superpathway-metabolties/PCA/" , subpathway, "-min-imputation.png"), 
+  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/lipids-subpathways/PCA/" , subpathway, "-min-imputation.png"), 
          plot = p, width = 12, height = 9)
   #########################################################
   #
@@ -99,7 +111,7 @@ for (i in c(1:length(pathways.list))){
     geom_boxplot(aes(fill = sample.type)) + xlab("") + 
     theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 14)) + ggtitle(subpathway) -> p
   
-  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/superpathway-metabolties/PCA/" , subpathway, "-min-imputation-boxplots.png"), 
+  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/lipids-subpathways/PCA/" , subpathway, "-min-imputation-boxplots.png"), 
          plot = p, width = 26, height = 18)
   
   cfs.df = subset(top10.df, sample.type != "HC")
@@ -111,6 +123,6 @@ for (i in c(1:length(pathways.list))){
   ggplot(subset(cfs.df, !(patient.sample %in% loner.patients)), aes(x = sample.type, y = value, colour = BIOCHEMICAL, group= BIOCHEMICAL)) +
     geom_line() + geom_point(shape=21, fill = "white") + xlab("")  + facet_wrap(~patient.sample) + ylab("") + scale_y_log10() -> p
   
-  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/superpathway-metabolties/PCA/" , subpathway, "-min-imputation-slopegraph.png"), 
+  ggsave(filename = paste0("./figures/ECSC-08-15-from-Adam/lipids-subpathways/PCA/" , subpathway, "-min-imputation-slopegraph.png"), 
          plot = p, width = 26, height = 18)
 }
